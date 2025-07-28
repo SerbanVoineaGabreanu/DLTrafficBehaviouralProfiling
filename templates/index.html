@@ -1,0 +1,232 @@
+<!-- Authors: Serban Voinea Gabreanu, Gur Rehmat Singh Chahal, Algoma University, COSC5906002 Advanced Topics of Computer Networks (25SP), Final Project.
+This is the html file for the profiler page, here the user is able to select the model, data format, upload/paste traffic flow information, and then
+get an analysis of the data. 
+-->
+
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Profiler</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='pictures/icon.png') }}">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="top-bar">
+                <div class="title-wrapper">
+                    <img src="{{ url_for('static', filename='pictures/titlePicture.png') }}" alt="Traffic Profiler Icon" class="title-image">
+                    <h1>Traffic Profiler</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="theme-toggle" class="icon-btn" type="button" aria-pressed="false" title="Toggle dark mode">
+                        <span class="mode-icon light">🌙</span>
+                        <span class="mode-icon dark">☀️</span>
+                    </button>
+                </div>
+            </div>
+            <p class="subtitle">Analyze network traffic to classify its type using a trained model.</p>
+        </header>
+
+        <main id="main-layout">
+            <div class="panel panel-form">
+                <form method="post" enctype="multipart/form-data" id="analyze-form">
+                    <div class="form-group">
+                        <label for="model-select">1. Select a Trained Model</label>
+                        <select name="model" id="model-select" required>
+                            {% if models %}
+                                {% for model in models %}
+                                    <option value="{{ model }}" {% if selected_model == model %}selected{% endif %}>{{ model }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled selected>No models found</option>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>2. Specify Input Data Format</label>
+                        <div class="toggle-switch">
+                            <input type="radio" id="format-cic" name="data_format" value="cicflowmeter" {% if data_format == 'cicflowmeter' %}checked{% endif %}>
+                            <label for="format-cic">WireShark CICFlowMeter</label>
+                            
+                            <input type="radio" id="format-ids" name="data_format" value="ids2018" {% if data_format == 'ids2018' %}checked{% endif %}>
+                            <label for="format-ids">IDS 2018 Dataset</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="file-upload">3. Upload CSV File</label>
+                        <p class="info">Upload a file containing one or more rows of packet data.</p>
+                        <input type="file" name="file" id="file-upload" accept=".csv">
+                    </div>
+                    
+                    <div class="separator">OR</div>
+
+                    <div class="form-group">
+                        <label for="pasted-info">Paste CSV Content</label>
+                        <p class="info">Paste one or more comma-separated rows. Headers are optional.</p>
+                        <textarea name="pasted_info" id="pasted-info" rows="8" placeholder="e.g., 192.168.2.178, 17.248.207.68, 54959, 443, 6,..."></textarea>
+                    </div>
+
+                    <button type="submit" class="primary-btn with-spinner">
+                        <span class="btn-label">Analyze Packet</span>
+                        <span class="spinner" aria-hidden="true"></span>
+                    </button>
+                </form>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-region" aria-live="polite">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <div class="panel panel-results">
+                {% if prediction %}
+                <div id="result">
+                    <h2>Analysis Result</h2>
+                    <p class="hint">Predicted packet type:</p>
+                    <div class="prediction-box {{ 'malicious' if prediction != 'Benign' else 'benign' }}">
+                        <span>{{ prediction }}</span>
+                    </div>
+
+                    <div class="confidence-score">
+                        Confidence: <strong>{{ confidence }}</strong>
+                    </div>
+
+                    <div class="results-breakdown" id="probabilities">
+                        <h3>All Class Probabilities</h3>
+                        <ul>
+                            {% for class_name, prob in results %}
+                                <li data-prob="{{ prob }}">
+                                    <span class="class-name">{{ class_name }}</span>
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-bar" style="--prob: {{ prob }};">
+                                            <span class="inside-label">{{ "%.2f"|format(prob * 100) }}%</span>
+                                        </div>
+                                    </div>
+                                    <span class="prob-value outside-label">{{ "%.2f"|format(prob * 100) }}%</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% else %}
+                <div id="result" class="empty-state">
+                    <h2>No Analysis Yet</h2>
+                    <p>Submit data to see classification results here.</p>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+
+        <footer class="footer-actions">
+            <button id="viewport-toggle" type="button" class="secondary-btn">Mobile/Desktop</button>
+        </footer>
+    </div>
+
+    <!-- Full-screen loading overlay (hidden until active) -->
+    <div id="loading-overlay" aria-hidden="true">
+        <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+        <p>Analyzing...</p>
+    </div>
+
+    <script>
+        const form = document.getElementById('analyze-form');
+        const textarea = document.getElementById('pasted-info');
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const viewportToggle = document.getElementById('viewport-toggle');
+
+        /*  Comma formatting for textarea  */
+        function formatTextareaContent() {
+            let content = textarea.value;
+            content = content.replace(/\\s*,\\s*/g, ', ');
+            textarea.value = content;
+        }
+        if (textarea) {
+            textarea.addEventListener('input', formatTextareaContent);
+            if (textarea.value.trim().length > 0) formatTextareaContent();
+        }
+
+        /*  Dark Mode Persistence  */
+        const savedTheme = localStorage.getItem('tp-theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            themeToggle.setAttribute('aria-pressed', savedTheme === 'dark');
+        }
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('tp-theme', next);
+            themeToggle.setAttribute('aria-pressed', next === 'dark');
+        });
+
+        /*  Loading Spinner & Overlay  */
+        form.addEventListener('submit', (e) => {
+            formatTextareaContent();
+            submitBtn.classList.add('loading');
+            loadingOverlay.classList.add('active');
+            loadingOverlay.setAttribute('aria-hidden', 'false');
+        });
+
+        /*  Adaptive Probability Bars  */
+        function adaptProbabilityBars() {
+            const listItems = document.querySelectorAll('#probabilities li');
+            listItems.forEach(li => {
+                const bar = li.querySelector('.progress-bar');
+                const insideLabel = bar.querySelector('.inside-label');
+                const outsideLabel = li.querySelector('.outside-label');
+                const barWidth = bar.getBoundingClientRect().width;
+                const labelNeeded = insideLabel.textContent.length * 7 + 12;
+                if (labelNeeded < barWidth * parseFloat(getComputedStyle(bar).getPropertyValue('--prob'))) {
+                    bar.classList.add('show-inside');
+                    outsideLabel.classList.add('hide-outside');
+                } else {
+                    bar.classList.remove('show-inside');
+                    outsideLabel.classList.remove('hide-outside');
+                }
+            });
+        }
+        window.addEventListener('resize', adaptProbabilityBars);
+        window.addEventListener('load', adaptProbabilityBars);
+        adaptProbabilityBars();
+
+        /* Mobile/Desktop Debug Mode */
+        viewportToggle.addEventListener('click', () => {
+            body.classList.toggle('force-desktop');
+            body.classList.toggle('force-mobile');
+            //If neither set yet, start with desktop
+            if (!body.classList.contains('force-desktop') && !body.classList.contains('force-mobile')) {
+                body.classList.add('force-desktop');
+            }
+        });
+
+        /* Prefer reduced motion respect */
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.documentElement.classList.add('reduced-motion');
+        }
+    </script>
+</body>
+</html>
