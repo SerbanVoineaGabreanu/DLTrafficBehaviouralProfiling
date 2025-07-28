@@ -1,3 +1,9 @@
+This software contains a Deep Learning training script, that can train the following models: Multi Layer Perceptron (MLP), Long Short Term Memory (LSTM), Convolutional Neural Network (CNN), TabTransformer, and Random Forest (RF). It also has a script that runs a local flask website, where a user is able to upload IDS 2018 packets for analysis, or network flow data from wireshark, and CicFlowMeter (PCAP to CSV format).
+
+
+
+How To:
+
 To properly use this software, the proper steps must be taken otherwise it might not work properly.
 
 The first step is to download the IDS 2018 Intrusion CSVs dataset https://www.kaggle.com/datasets/solarmainframe/ids-intrusion-csv/data?select=02-20-2018.csv
